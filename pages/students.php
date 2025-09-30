@@ -2,9 +2,7 @@
     require "../db/connect.php";
     session_start();
     $recordsPerPage = 10;
-    // ---------------------------
-    // Attendance Table Pagination
-    // ---------------------------
+    
     $studentsPage = isset($_GET['students_page']) && is_numeric($_GET['students_page']) 
     ? (int)$_GET['students_page'] 
     : 1;    
@@ -52,7 +50,16 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css"> 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../assets/css/style.css">
-    
+    <style>
+        .page-link:hover {
+            color: var(--primary-color);
+        }
+        
+        .page-link:focus {
+            color: white !important;
+            background-color: green;
+        }
+    </style>
 </head>
 <body>
     <div class="overlay" id="overlay"></div>
@@ -134,8 +141,23 @@
                                         </a>
                                     </li>
 
-                                    <!-- Page Numbers -->
-                                    <?php for ($i = 1; $i <= $totalStudentsPages; $i++): ?>
+                                    <!-- First page -->
+                                    <?php if ($studentsPage > 3): ?>
+                                        <li class="page-item">
+                                            <a class="page-link text-success" 
+                                            href="?students_page=1">
+                                            1
+                                            </a>
+                                        </li>
+                                        <?php if ($studentsPage > 4): ?>
+                                            <li class="page-item disabled">
+                                                <span class="page-link text-dark">...</span>
+                                            </li>
+                                        <?php endif; ?>
+                                    <?php endif; ?>
+
+                                    <!-- Page Numbers around current page -->
+                                    <?php for ($i = max(1, $studentsPage - 2); $i <= min($totalStudentsPages, $studentsPage + 2); $i++): ?>
                                         <li class="page-item <?= ($studentsPage == $i) ? 'active' : '' ?>">
                                             <a class="page-link <?= ($studentsPage == $i) ? 'bg-success text-white border-success' : 'text-success' ?>" 
                                             href="?students_page=<?= $i ?>">
@@ -143,6 +165,21 @@
                                             </a>
                                         </li>
                                     <?php endfor; ?>
+
+                                    <!-- Last page -->
+                                    <?php if ($studentsPage < $totalStudentsPages - 2): ?>
+                                        <?php if ($studentsPage < $totalStudentsPages - 3): ?>
+                                            <li class="page-item disabled">
+                                                <span class="page-link text-dark">...</span>
+                                            </li>
+                                        <?php endif; ?>
+                                        <li class="page-item">
+                                            <a class="page-link text-success" 
+                                            href="?students_page=<?= $totalStudentsPages ?>">
+                                            <?= $totalStudentsPages ?>
+                                            </a>
+                                        </li>
+                                    <?php endif; ?>
 
                                     <!-- Next Button -->
                                     <li class="page-item <?= ($studentsPage >= $totalStudentsPages) ? 'disabled' : '' ?>">

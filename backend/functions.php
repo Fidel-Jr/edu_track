@@ -6,7 +6,7 @@ function getClassAttendanceRate($pdo, $classId) {
         SELECT 
             ROUND(
                 (SUM(CASE WHEN a.status = 'Present' THEN 1 ELSE 0 END) * 100.0) / COUNT(*),
-                2
+                0
             ) AS class_attendance_rate
         FROM attendance a
         INNER JOIN student_classes sc 
@@ -25,14 +25,14 @@ function getClassAttendanceRate($pdo, $classId) {
 
 function getClassAverageGrade($pdo, $classId) {
     $sql = "
-        SELECT 
-            ROUND((SUM(g.score) * 100.0) / (COUNT(*) * 15), 2 ) AS average_grade_percentage
-        FROM grades g
-        INNER JOIN student_classes sc 
-            ON g.student_class_id = sc.id
-        WHERE sc.class_id = :class_id
-        GROUP BY sc.class_id
-    ";
+    SELECT 
+        ROUND((SUM(g.score) * 100.0) / NULLIF(SUM(g.maximum_score), 0), 0) AS average_grade_percentage
+    FROM grades g
+    INNER JOIN student_classes sc 
+        ON g.student_class_id = sc.id
+    WHERE sc.class_id = :class_id
+    GROUP BY sc.class_id
+";
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute([':class_id' => $classId]);

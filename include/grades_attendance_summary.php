@@ -1,88 +1,90 @@
 <?php
-    require "../db/connect.php";
+require "../db/connect.php";
+require "../backend/helpers.php";
 
-    $recordsPerPage = 10;
+// --- Modular Functions ---
+function getPageInfo($param, $recordsPerPage = 10) {
+    $page = isset($_GET[$param]) && is_numeric($_GET[$param]) ? (int)$_GET[$param] : 1;
+    $offset = ($page - 1) * $recordsPerPage;
+    return [$page, $offset];
+}
 
-    // -----------------------
-    // Grades Table Pagination
-    // -----------------------
-    $gradesPage = isset($_GET['grades_page']) && is_numeric($_GET['grades_page']) ? (int)$_GET['grades_page'] : 1;
-    $gradesOffset = ($gradesPage - 1) * $recordsPerPage;
+function getTotalRows($pdo, $sql, $classId) {
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute([':class_id' => $classId]);
+    return $stmt->fetchColumn();
+}
 
-    // Count total grade rows
-    $countGradeSql = "SELECT COUNT(DISTINCT s.id) 
-                    FROM student_classes sc
-                    JOIN students s ON sc.student_id = s.id
-                    WHERE sc.class_id = :class_id";
-    $countGradeStmt = $pdo->prepare($countGradeSql);
-    $countGradeStmt->execute([':class_id' => $_SESSION["class_id"]]);
-    $totalGradeRows = $countGradeStmt->fetchColumn();
-    $totalGradePages = ceil($totalGradeRows / $recordsPerPage);
+function fetchGradeSummary($pdo, $classId, $limit, $offset) {
+    $sql = "SELECT 
+                s.id AS student_id,
+                CONCAT(s.first_name, ' ', s.last_name) AS student_name,
+                sc.class_id,
+                ROUND((
+                    (CASE 
+                        WHEN COUNT(CASE WHEN g.activity_type = 'Exam' THEN 1 END) > 0 
+                        THEN AVG(CASE WHEN g.activity_type = 'Exam' THEN g.percentage END) 
+                        ELSE 0 
+                     END) * 0.6
+                    +
+                    (CASE 
+                        WHEN COUNT(CASE WHEN g.activity_type <> 'Exam' THEN 1 END) > 0 
+                        THEN AVG(CASE WHEN g.activity_type <> 'Exam' THEN g.percentage END) 
+                        ELSE 0 
+                     END) * 0.4
+                ), 1) AS overall_grade_percentage,
+                MAX(g.grade) AS grade
+            FROM student_classes sc
+            JOIN students s ON sc.student_id = s.id
+            LEFT JOIN grades g ON g.student_class_id = sc.id
+            WHERE sc.class_id = :class_id
+            GROUP BY s.id, sc.class_id
+            LIMIT :limit OFFSET :offset";
+    
+    $stmt = $pdo->prepare($sql);
+    $stmt->bindValue(':class_id', $classId, PDO::PARAM_INT);
+    $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+    $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+    $stmt->execute();
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
 
-    // Fetch grade records
-    $sqlGrades = "SELECT 
-                    s.id AS student_id,
-                    CONCAT(s.first_name, ' ', s.last_name) AS student_name,
-                    sc.class_id,
-                      ROUND((
-            COALESCE(AVG(CASE WHEN g.activity_type = 'Exam' THEN g.percentage END), 0) * 0.6
-            +
-            COALESCE(AVG(CASE WHEN g.activity_type <> 'Exam' THEN g.percentage END), 0) * 0.4
-        ), 1) AS overall_grade_percentage,
 
-        MAX(g.grade) AS grade
-                FROM student_classes sc
-                JOIN students s ON sc.student_id = s.id
-                LEFT JOIN grades g ON g.student_class_id = sc.id
-                WHERE sc.class_id = :class_id
-                GROUP BY s.id, sc.class_id
-                LIMIT :limit OFFSET :offset";
+function fetchAttendanceSummary($pdo, $classId, $limit, $offset) {
+    $sql = "SELECT 
+                s.id AS student_id,
+                CONCAT(s.first_name, ' ', s.last_name) AS student_name,
+                sc.class_id,
+                ROUND((SUM(CASE WHEN a.status = 'Present' THEN 1 ELSE 0 END) * 100.0) / COUNT(a.id), 1) AS attendance_rate
+            FROM student_classes sc
+            JOIN students s ON sc.student_id = s.id
+            LEFT JOIN attendance a ON a.student_class_id = sc.id
+            WHERE sc.class_id = :class_id
+            GROUP BY s.id, sc.class_id
+            LIMIT :limit OFFSET :offset";
+    $stmt = $pdo->prepare($sql);
+    $stmt->bindValue(':class_id', $classId, PDO::PARAM_INT);
+    $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+    $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+    $stmt->execute();
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
 
-    $stmtGrades = $pdo->prepare($sqlGrades);
-    $stmtGrades->bindValue(':class_id', $_SESSION["class_id"], PDO::PARAM_INT);
-    $stmtGrades->bindValue(':limit', $recordsPerPage, PDO::PARAM_INT);
-    $stmtGrades->bindValue(':offset', $gradesOffset, PDO::PARAM_INT);
-    $stmtGrades->execute();
-    $grades = $stmtGrades->fetchAll(PDO::FETCH_ASSOC);
+// --- Main Script ---
+$recordsPerPage = 10;
+$classId = $_SESSION["class_id"];
 
-    // ---------------------------
-    // Attendance Table Pagination
-    // ---------------------------
-    $attendancePage = isset($_GET['attendance_page']) && is_numeric($_GET['attendance_page']) ? (int)$_GET['attendance_page'] : 1;
-    $attendanceOffset = ($attendancePage - 1) * $recordsPerPage;
+// Grades
+list($gradesPage, $gradesOffset) = getPageInfo('grades_page', $recordsPerPage);
+$totalGradeRows = getTotalRows($pdo, "SELECT COUNT(DISTINCT s.id) FROM student_classes sc JOIN students s ON sc.student_id = s.id WHERE sc.class_id = :class_id", $classId);
+$totalGradePages = ceil($totalGradeRows / $recordsPerPage);
+$grades = fetchGradeSummary($pdo, $classId, $recordsPerPage, $gradesOffset);
 
-    // Count total attendance rows
-    $countAttendanceSql = "SELECT COUNT(DISTINCT s.id)
-                        FROM student_classes sc
-                        JOIN students s ON sc.student_id = s.id
-                        WHERE sc.class_id = :class_id";
-    $countAttendanceStmt = $pdo->prepare($countAttendanceSql);
-    $countAttendanceStmt->execute([':class_id' => $_SESSION["class_id"]]);
-    $totalAttendanceRows = $countAttendanceStmt->fetchColumn();
-    $totalAttendancePages = ceil($totalAttendanceRows / $recordsPerPage);
-
-    // Fetch attendance records
-    $sqlAttendance = "SELECT 
-                        s.id AS student_id,
-                        CONCAT(s.first_name, ' ', s.last_name) AS student_name,
-                        sc.class_id,
-                        ROUND(
-                            (SUM(CASE WHEN a.status = 'Present' THEN 1 ELSE 0 END) * 100.0) / COUNT(a.id),
-                            1   
-                        ) AS attendance_rate
-                    FROM student_classes sc
-                    JOIN students s ON sc.student_id = s.id
-                    LEFT JOIN attendance a ON a.student_class_id = sc.id
-                    WHERE sc.class_id = :class_id
-                    GROUP BY s.id, sc.class_id
-                    LIMIT :limit OFFSET :offset";
-
-    $stmtAttendance = $pdo->prepare($sqlAttendance);
-    $stmtAttendance->bindValue(':class_id', $_SESSION["class_id"], PDO::PARAM_INT);
-    $stmtAttendance->bindValue(':limit', $recordsPerPage, PDO::PARAM_INT);
-    $stmtAttendance->bindValue(':offset', $attendanceOffset, PDO::PARAM_INT);
-    $stmtAttendance->execute();
-    $attendance = $stmtAttendance->fetchAll(PDO::FETCH_ASSOC);
+// Attendance
+list($attendancePage, $attendanceOffset) = getPageInfo('attendance_page', $recordsPerPage);
+$totalAttendanceRows = getTotalRows($pdo, "SELECT COUNT(DISTINCT s.id) FROM student_classes sc JOIN students s ON sc.student_id = s.id WHERE sc.class_id = :class_id", $classId);
+$totalAttendancePages = ceil($totalAttendanceRows / $recordsPerPage);
+$attendance = fetchAttendanceSummary($pdo, $classId, $recordsPerPage, $attendanceOffset);
 ?>
 
 <!-- ========================= -->
@@ -111,19 +113,14 @@
                                 <td class="align-middle"><?= $student["student_name"] ?></td>
                                 <?php
                                     $percentage = $student["overall_grade_percentage"];
-                                    if ($percentage >= 80) {
-                                        $colorClass = "text-success"; 
-                                    } elseif ($percentage >= 70) {
-                                        $colorClass = "text-warning"; 
-                                    } else {
-                                        $colorClass = "text-danger"; 
-                                    }
+                                    list($letter, $colorClass) = getGradeAndColor($percentage);
                                 ?>
+
                                 <td class="align-middle <?= $colorClass; ?>">
                                     <?= isset($percentage) ? $percentage . "%" : "0%"; ?>
                                 </td>
                                 <td class="align-middle <?= $colorClass; ?>">
-                                    <?= $student["grade"] ?? ""; ?>
+                                    <?= $letter ?>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
@@ -148,11 +145,25 @@
         <!-- Grades Pagination -->
         <nav aria-label="Grade pagination">
             <ul class="pagination justify-content-center mt-4">
+                <!-- Previous button -->
                 <li class="page-item <?= ($gradesPage <= 1) ? 'disabled' : '' ?>">
                     <a class="page-link text-dark" href="?grades_page=<?= max(1, $gradesPage - 1) ?>&attendance_page=<?= $attendancePage ?>">Previous</a>
                 </li>
 
-                <?php for ($i = 1; $i <= $totalGradePages; $i++): ?>
+                <!-- First page -->
+                <?php if ($gradesPage > 3): ?>
+                    <li class="page-item">
+                        <a class="page-link text-success" href="?grades_page=1&attendance_page=<?= $attendancePage ?>">1</a>
+                    </li>
+                    <?php if ($gradesPage > 4): ?>
+                        <li class="page-item disabled">
+                            <span class="page-link text-dark">...</span>
+                        </li>
+                    <?php endif; ?>
+                <?php endif; ?>
+
+                <!-- Page numbers around current page -->
+                <?php for ($i = max(1, $gradesPage - 2); $i <= min($totalGradePages, $gradesPage + 2); $i++): ?>
                     <li class="page-item <?= ($gradesPage == $i) ? 'active' : '' ?>">
                         <a class="page-link text-success <?= ($gradesPage == $i) ? 'bg-success text-white border-success' : '' ?>" 
                         href="?grades_page=<?= $i ?>&attendance_page=<?= $attendancePage ?>">
@@ -161,6 +172,19 @@
                     </li>
                 <?php endfor; ?>
 
+                <!-- Last page -->
+                <?php if ($gradesPage < $totalGradePages - 2): ?>
+                    <?php if ($gradesPage < $totalGradePages - 3): ?>
+                        <li class="page-item disabled">
+                            <span class="page-link text-dark">...</span>
+                        </li>
+                    <?php endif; ?>
+                    <li class="page-item">
+                        <a class="page-link text-success" href="?grades_page=<?= $totalGradePages ?>&attendance_page=<?= $attendancePage ?>"><?= $totalGradePages ?></a>
+                    </li>
+                <?php endif; ?>
+
+                <!-- Next button -->
                 <li class="page-item <?= ($gradesPage >= $totalGradePages) ? 'disabled' : '' ?>">
                     <a class="page-link text-dark" href="?grades_page=<?= min($totalGradePages, $gradesPage + 1) ?>&attendance_page=<?= $attendancePage ?>">Next</a>
                 </li>
@@ -238,11 +262,25 @@
         <!-- Attendance Pagination -->
         <nav aria-label="Attendance pagination">
             <ul class="pagination justify-content-center mt-4">
+                <!-- Previous button -->
                 <li class="page-item <?= ($attendancePage <= 1) ? 'disabled' : '' ?>">
                     <a class="page-link text-dark" href="?attendance_page=<?= max(1, $attendancePage - 1) ?>&grades_page=<?= $gradesPage ?>">Previous</a>
                 </li>
 
-                <?php for ($i = 1; $i <= $totalAttendancePages; $i++): ?>
+                <!-- First page -->
+                <?php if ($attendancePage > 3): ?>
+                    <li class="page-item">
+                        <a class="page-link text-success" href="?attendance_page=1&grades_page=<?= $gradesPage ?>">1</a>
+                    </li>
+                    <?php if ($attendancePage > 4): ?>
+                        <li class="page-item disabled">
+                            <span class="page-link text-dark">...</span>
+                        </li>
+                    <?php endif; ?>
+                <?php endif; ?>
+
+                <!-- Page numbers around current page -->
+                <?php for ($i = max(1, $attendancePage - 2); $i <= min($totalAttendancePages, $attendancePage + 2); $i++): ?>
                     <li class="page-item <?= ($attendancePage == $i) ? 'active' : '' ?>">
                         <a class="page-link text-success <?= ($attendancePage == $i) ? 'bg-success text-white border-success' : '' ?>" 
                         href="?attendance_page=<?= $i ?>&grades_page=<?= $gradesPage ?>">
@@ -251,6 +289,19 @@
                     </li>
                 <?php endfor; ?>
 
+                <!-- Last page -->
+                <?php if ($attendancePage < $totalAttendancePages - 2): ?>
+                    <?php if ($attendancePage < $totalAttendancePages - 3): ?>
+                        <li class="page-item disabled">
+                            <span class="page-link text-dark">...</span>
+                        </li>
+                    <?php endif; ?>
+                    <li class="page-item">
+                        <a class="page-link text-success" href="?attendance_page=<?= $totalAttendancePages ?>&grades_page=<?= $gradesPage ?>"><?= $totalAttendancePages ?></a>
+                    </li>
+                <?php endif; ?>
+
+                <!-- Next button -->
                 <li class="page-item text-dark <?= ($attendancePage >= $totalAttendancePages) ? 'disabled' : '' ?>">
                     <a class="page-link text-dark" href="?attendance_page=<?= min($totalAttendancePages, $attendancePage + 1) ?>&grades_page=<?= $gradesPage ?>">Next</a>
                 </li>

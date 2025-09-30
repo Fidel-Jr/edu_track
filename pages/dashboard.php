@@ -67,6 +67,7 @@
                                 <div class="card-body">
                                     <div class="d-flex justify-content-between align-items-center">
                                         <div>
+                                            
                                             <h6 class="card-title">AVERAGE GRADE</h6>
                                             <h3 class="card-text"><?php echo $averageGrade ?>%</h3>
                                         </div>

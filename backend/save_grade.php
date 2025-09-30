@@ -1,5 +1,6 @@
 <?php
 require "../db/connect.php"; // your PDO connection
+require "../backend/helpers.php";
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Get form data
@@ -36,19 +37,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $score = $scores[$i];
         
         // Calculate percentage and grade
-        $percentage = ($score / $maxScore) * 100;
-        
-        if ($percentage >= 90) {
-            $grade = 'A';
-        } elseif ($percentage >= 80) {
-            $grade = 'B';
-        } elseif ($percentage >= 70) {
-            $grade = 'C';
-        } elseif ($percentage >= 60) {
-            $grade = 'D';
-        } else {
-            $grade = 'F';
-        }
+        $percentage = (($score / $maxScore) * 85) +  15;
+        list($letter, $colorClass) = getGradeAndColor($percentage);
+        $grade = $letter;
         
         // Bind parameters and execute
         $stmt->bindParam(':student_class_id', $studentClassId);

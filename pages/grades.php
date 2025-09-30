@@ -1,87 +1,7 @@
-<?php 
+<?php
 
-    include '../db/connect.php';
-    session_start();
-    if ((!isset($_SESSION["username"]) && !isset($_SESSION["user_id"])) || !isset($_SESSION["class_id"])) {
-        header("Location: ../welcome.php");
-        exit;
-    }
-    $activity = isset($_GET['activity']) ? $_GET['activity'] : '';
-    $gradeRange = isset($_GET['grade_range']) ? $_GET['grade_range'] : '';
-    $student = isset($_GET['student']) ? $_GET['student'] : '';
-    $whereClauses = ["student_classes.class_id = :class_id"];
-    $params = [":class_id" => $_SESSION["class_id"]];
-
-    // Filter by activity type
-    if (!empty($activity)) {
-        $whereClauses[] = "grades.activity_type = :activity";
-        $params[':activity'] = $activity;
-    }
-
-    // Filter by grade range
-    if (!empty($gradeRange)) {
-        [$min, $max] = explode('-', $gradeRange);
-        $whereClauses[] = "grades.percentage BETWEEN :minGrade AND :maxGrade";
-        $params[':minGrade'] = (int)$min;
-        $params[':maxGrade'] = (int)$max;
-    }
-
-    // Filter by student name
-    if (!empty($student)) {
-        $whereClauses[] = "(students.first_name LIKE :student OR students.last_name LIKE :student)";
-        $params[':student'] = "%" . $student . "%";
-    }
-
-    $whereSQL = implode(" AND ", $whereClauses);
-
-        // Fetch class name from database
-        $stmt = $pdo->prepare("SELECT course_name FROM class WHERE id = :class_id");
-        $stmt->execute([':class_id' => $_SESSION["class_id"]]);
-        $class = $stmt->fetch(PDO::FETCH_ASSOC);
-        $className = $class["course_name"];
-
-    // Pagination setup
-    $gradesPage = isset($_GET['grades_page']) && is_numeric($_GET['grades_page']) ? (int) $_GET['grades_page'] : 1;
-    $recordsPerPage = 10;
-    $offset = ($gradesPage - 1) * $recordsPerPage;
-
-    // Count total grades
-    $countSql = "SELECT COUNT(*)
-        FROM grades
-        INNER JOIN student_classes ON grades.student_class_id = student_classes.id
-        INNER JOIN students ON student_classes.student_id = students.id
-        WHERE $whereSQL";
-
-    $countStmt = $pdo->prepare($countSql);
-    $countStmt->execute($params);
-    $totalGradeRows = $countStmt->fetchColumn();
-    $totalGradesPages = ceil($totalGradeRows / $recordsPerPage);
-
-    $sql = "SELECT 
-            students.id AS student_id, 
-            students.first_name, 
-            students.last_name, 
-            grades.*
-            FROM grades
-            INNER JOIN student_classes ON grades.student_class_id = student_classes.id
-            INNER JOIN students ON student_classes.student_id = students.id
-            WHERE $whereSQL
-            ORDER BY grades.date DESC
-            LIMIT :limit OFFSET :offset";
-
-    $stmt = $pdo->prepare($sql);
-
-    // bind normal params
-    foreach ($params as $key => $value) {
-        $stmt->bindValue($key, $value);
-    }
-    $stmt->bindValue(':limit', $recordsPerPage, PDO::PARAM_INT);
-    $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
-    $stmt->execute();
-
-    $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    $gradesQueryString = http_build_query(array_merge($_GET, ['grades_page' => null]));
+    require_once '../backend/grade_functions.php';
+    require_once '../backend/helpers.php';
 
 ?>
 
@@ -102,6 +22,10 @@
             background-color: #f5f7fb;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
+        .btn-primary:focus{
+            background-color: green !important;
+        }
+
         body.modal-open {
             overflow: hidden;
             padding-right: 0 !important; /* Prevents layout shift */
@@ -168,6 +92,15 @@
             color: var(--primary-color);
         }
         
+        .page-link:hover {
+            color: var(--primary-color);
+        }
+        
+        .page-link:focus {
+            color: white !important;
+            background-color: green;
+        }
+
         .grade-actions {
             display: flex;
             gap: 10px;
@@ -352,16 +285,10 @@
                                                         <!-- Percentage -->
                                                         <?php
                                                             $percentage = $student["percentage"];
-                                                            if ($percentage >= 80) {
-                                                                $colorClass = "text-success"; // green
-                                                            } elseif ($percentage >= 70) {
-                                                                $colorClass = "text-warning"; // orange
-                                                            } else {
-                                                                $colorClass = "text-danger"; // red
-                                                            }
+                                                            list($letter, $colorClass) = getGradeAndColor($percentage);
                                                         ?>
-                                                        <td class="align-middle <?php echo $colorClass; ?>">
-                                                            <?php echo $percentage . "%" ?>
+                                                        <td class="align-middle <?= $colorClass; ?>">
+                                                            <?= isset($percentage) ? $percentage . "%" : "0%"; ?>
                                                         </td>
 
                                                         <!-- Grade -->
@@ -372,9 +299,9 @@
                                                         <!-- Actions -->
                                                         <td class="align-middle text-center">
                                                             <div class="btn-group" role="group">
-                                                                <button class="btn btn-sm btn-outline-primary" title="Edit">
+                                                                <a href="edit_grade.php?id=<?= $student["id"] ?>" class="btn btn-sm btn-primary" title="Edit">
                                                                     <i class="fas fa-edit"></i>
-                                                                </button>
+                                                                </a>
                                                             </div>
                                                         </td>
                                                     </tr>
@@ -396,12 +323,36 @@
                                             <a class="page-link" href="?<?= $gradesQueryString ?>&grades_page=<?= max(1, $gradesPage - 1) ?>">Previous</a>
                                         </li>
 
-                                        <!-- Page numbers -->
-                                        <?php for ($i = 1; $i <= $totalGradesPages; $i++): ?>
+                                        <!-- First page -->
+                                        <?php if ($gradesPage > 3): ?>
+                                            <li class="page-item">
+                                                <a class="page-link" href="?<?= $gradesQueryString ?>&grades_page=1">1</a>
+                                            </li>
+                                            <?php if ($gradesPage > 4): ?>
+                                                <li class="page-item disabled">
+                                                    <span class="page-link">...</span>
+                                                </li>
+                                            <?php endif; ?>
+                                        <?php endif; ?>
+
+                                        <!-- Page numbers around current page -->
+                                        <?php for ($i = max(1, $gradesPage - 2); $i <= min($totalGradesPages, $gradesPage + 2); $i++): ?>
                                             <li class="page-item <?= ($gradesPage == $i) ? 'active' : '' ?>">
                                                 <a class="page-link" href="?<?= $gradesQueryString ?>&grades_page=<?= $i ?>"><?= $i ?></a>
                                             </li>
                                         <?php endfor; ?>
+
+                                        <!-- Last page -->
+                                        <?php if ($gradesPage < $totalGradesPages - 2): ?>
+                                            <?php if ($gradesPage < $totalGradesPages - 3): ?>
+                                                <li class="page-item disabled">
+                                                    <span class="page-link">...</span>
+                                                </li>
+                                            <?php endif; ?>
+                                            <li class="page-item">
+                                                <a class="page-link" href="?<?= $gradesQueryString ?>&grades_page=<?= $totalGradesPages ?>"><?= $totalGradesPages ?></a>
+                                            </li>
+                                        <?php endif; ?>
 
                                         <!-- Next button -->
                                         <li class="page-item <?= ($gradesPage >= $totalGradesPages) ? 'disabled' : '' ?>">
@@ -475,33 +426,22 @@
                                             </thead>
                                             <tbody>
                                                 <?php
-
-                                                    $sql = "SELECT * FROM students
-                                                            INNER JOIN student_classes 
-                                                            ON students.id = student_classes.student_id
-                                                            WHERE student_classes.class_id = :class_id
-                                                            ORDER BY students.last_name, students.first_name";
-                                                    $stmt = $pdo->prepare($sql);
-                                                    $stmt->execute([':class_id' => $_SESSION["class_id"]]);
-
-                                                    // Fetch all results
-                                                    $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                                                    $counter = 0;
-                                                    foreach($students as $student){
-                                                    ?>
-                                                        <input type="hidden" name="student_class_id[]" value="<?php echo $student["id"] ?>">
-                                                        <tr class="student-list-item">
-                                                            <td><?php echo $counter = $counter + 1 ?></td>
-                                                            <td><?php echo $student["student_id"] ?></td>
-                                                            <td><?php echo $student["first_name"] . " " . $student["last_name"] ?></td>
-                                                            <td class="text-center">
-                                                                <input type="number" name="score[]" class="form-control form-control-sm" min="0" max="100" value="0">
-                                                            </td>
-                                                            <td class="text-center grade-high text-danger">15%</td>
-                                                            <td class="text-center grade-high text-danger">F</td>
-                                                        </tr>
-                                                    <?php 
-                                                    }?>
+                                                $studentList = fetchStudentList($pdo, $_SESSION["class_id"]);
+                                                $counter = 0;
+                                                foreach($studentList as $student){
+                                                ?>
+                                                    <input type="hidden" name="student_class_id[]" value="<?php echo $student["id"] ?>">
+                                                    <tr class="student-list-item">
+                                                        <td><?php echo ++$counter ?></td>
+                                                        <td><?php echo htmlspecialchars($student["student_id"]) ?></td>
+                                                        <td><?php echo htmlspecialchars($student["first_name"] . " " . $student["last_name"]) ?></td>
+                                                        <td class="text-center">
+                                                            <input type="number" name="score[]" class="form-control form-control-sm" min="0" max="100" value="0">
+                                                        </td>
+                                                        <td class="text-center grade-high text-danger">15%</td>
+                                                        <td class="text-center grade-high text-danger">F</td>
+                                                    </tr>
+                                                <?php } ?>
                                                 
                                             
                                             </tbody>
@@ -637,18 +577,6 @@
             navigateTo('studentGradePage');
         });
         
-        // Basic filter functionality (for demonstration)
-        document.getElementById('applyFilters').addEventListener('click', function() {
-            alert('Filters applied! (This is a demo. In a real application, this would filter the table data.)');
-        });
-        
-        document.getElementById('resetFilters').addEventListener('click', function() {
-            document.getElementById('activityFilter').value = '';
-            document.getElementById('gradeFilter').value = '';
-            document.getElementById('studentFilter').value = '';
-            alert('Filters reset!');
-        });
-        
         // Save grades function
         document.getElementById("gradesForm").addEventListener("submit", function (event) {
             event.preventDefault(); // stop immediate submission
@@ -665,43 +593,61 @@
             }
         });
         
-        // Auto-calculate percentage and grade when score changes
-        document.querySelectorAll('input[type="number"]').forEach(input => {
-            input.addEventListener('change', function() {
-                const maxScore = document.getElementById('maxScore').value; // This would come from the database in a real app
-                const score = parseFloat(this.value);
-                const percentage = ((score / maxScore) * 85) + 15;
-                
-                const row = this.closest('tr');
-                const percentageCell = row.querySelector('td:nth-child(5)');
-                const gradeCell = row.querySelector('td:nth-child(6)');
-                
-                percentageCell.textContent = `${percentage.toFixed(0)}%`;
-                
-                // Set appropriate class based on percentage
-                if (percentage >= 90) {
-                    percentageCell.className = 'text-center grade-high';
-                    gradeCell.textContent = 'A';
-                    gradeCell.className = 'text-center grade-high';
-                } else if (percentage >= 80) {
-                    percentageCell.className = 'text-center grade-high';
-                    gradeCell.textContent = 'B';
-                    gradeCell.className = 'text-center grade-high';
-                } else if (percentage >= 70) {
-                    percentageCell.className = 'text-center grade-medium';
-                    gradeCell.textContent = 'C';
-                    gradeCell.className = 'text-center grade-medium';
-                } else if (percentage >= 60) {
-                    percentageCell.className = 'text-center grade-low';
-                    gradeCell.textContent = 'D';
-                    gradeCell.className = 'text-center grade-low';
-                } else {
-                    percentageCell.className = 'text-center grade-low';
-                    gradeCell.textContent = 'F';
-                    gradeCell.className = 'text-center grade-low';
-                }
+        // Attach auto-calculate listeners when grade entry page is shown
+        function attachGradeAutoCalcListeners() {
+            document.querySelectorAll('#studentGradePage input[type="number"]').forEach(input => {
+                input.removeEventListener('input', autoCalcHandler); // Remove previous to avoid duplicates
+                input.addEventListener('input', autoCalcHandler);
             });
-        });
+        }
+
+        function autoCalcHandler() {
+            const maxScore = parseFloat(document.getElementById('maxScoreHidden').value) || 100;
+            let score = parseFloat(this.value) || 0;
+            if (score > maxScore) {
+                alert('Score cannot be greater than the maximum score (' + maxScore + ').');
+                this.value = maxScore;
+                score = maxScore;
+            }
+            let percentage = 0;
+            if (maxScore > 0) {
+                percentage = ((score / maxScore) * 85) + 15;
+            }
+            const row = this.closest('tr');
+            const percentageCell = row.querySelector('td:nth-child(5)');
+            const gradeCell = row.querySelector('td:nth-child(6)');
+            percentageCell.textContent = `${percentage.toFixed(0)}%`;
+            // Set appropriate class and grade based on percentage
+            if (percentage >= 81) {
+                // A grade
+                percentageCell.className = 'text-center grade-high';
+                gradeCell.textContent = 'A';
+                gradeCell.className = 'text-center grade-high';
+            } else if (percentage > 74) {
+                // C grade
+                percentageCell.className = 'text-center grade-medium';
+                gradeCell.textContent = 'C';
+                gradeCell.className = 'text-center grade-medium';
+            } else {
+                // F grade
+                percentageCell.className = 'text-center grade-low';
+                gradeCell.textContent = 'F';
+                gradeCell.className = 'text-center grade-low';
+            }
+        }
+
+        // Call this after navigating to studentGradePage
+        function navigateTo(pageId) {
+            document.querySelectorAll('.grade-page').forEach(page => {
+                page.style.display = 'none';
+            });
+            document.getElementById(pageId).style.display = 'block';
+            // Scroll to top when navigating
+            window.scrollTo(0, 0);
+            if (pageId === 'studentGradePage') {
+                attachGradeAutoCalcListeners();
+            }
+        }
     </script>
     <script src="../assets/js/main.js"></script>
 </body>
