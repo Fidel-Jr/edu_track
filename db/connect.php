@@ -1,6 +1,6 @@
 <?php 
 
-    $dns = 'mysql:host=localhost;dbname=edutrack_db; charset=utf8mb4';
+    $dns = 'mysql:host=localhost;dbname=edutrack_db; port=3307; charset=utf8mb4';
     $username = 'root';
     $password = '';
     try {

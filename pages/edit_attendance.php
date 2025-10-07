@@ -62,8 +62,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="row mb-4">
                     <div class="col-md-6">
                         <h2 class="mb-0">
-                           <i class="fas fa-arrow-left back-button me-2" onclick="navigateTo('attendanceCreationPage')"></i>
-                            <span id="attendanceDateTitle">Attendance for <?= $attendance["date"] ?></span>
+                           <!-- <i class="fas fa-arrow-left back-button me-2" onclick="navigateTo('attendanceCreationPage')"></i> -->
+                            <span id="attendanceDateTitle">Edit Attendance for <?= $attendance["date"] ?></span>
                         </h2>
                         <p class="text-muted">Student ID: <?= htmlspecialchars($attendance['student_id']) ?></p>
                     </div>
@@ -78,7 +78,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                 </div>
                 <div class="card">
-                    <div class="card-header py-3">
+                    <div class="card-header py-3 text-white" style="background-color: var(--primary-color);">
                         <h5 class="mb-0"><i class="fas fa-user me-2"></i>Edit Student Attendance</h5>
                     </div>
                     <div class="card-body">

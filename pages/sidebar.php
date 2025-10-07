@@ -6,9 +6,6 @@
     
 ?>
 
-
-
-
 <nav id="sidebar">
     <div class="sidebar-header">
         <h3><i class="bi bi-school"></i> Skol Monitoring System</h3>
@@ -46,13 +43,20 @@
             </a>
         </li>
         <li class="nav-item">
-            <a href="../backend/switch_class.php" class="nav-link <?php echo ($current_page == '../welcome.php') ? 'active' : ''; ?>">
+            <a href="../backend/switch_class.php" class="nav-link">
                 <i class="bi bi-table"></i>
                 <span class="link-text">Switch Class</span>
             </a>
         </li>
+        <li class="nav-section">History</li>
+        <li class="nav-item">
+            <a href="records.php" class="nav-link <?php echo ($current_page == 'records.php') ? 'active' : ''; ?>">
+                <i class="bi bi-buildings"></i>
+                <span class="link-text">Records</span>
+            </a>
+        </li>
         <?php endif; ?>
-        
+
         <li class="nav-section">Account</li>
         <li class="nav-item">
             <a href="profile.php" class="nav-link <?php echo ($current_page == 'profile.php') ? 'active' : ''; ?>">

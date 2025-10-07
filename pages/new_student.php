@@ -118,64 +118,64 @@ if (isset($_POST['add_student_id'])) {
 
                 <!-- Page Content -->
                 <div class="container-fluid p-5">
-    <h2 class="mb-4 fw-bold">Add Student</h2>
-    <?= $message ?>
+                    <h2 class="mb-4 fw-bold">Add Student</h2>
+                    <?= $message ?>
 
-    <!-- Search Card -->
-    <div class="card shadow-sm mb-5">
-        <div class="card-body">
-            <form method="get" class="d-flex">
-                <input 
-                    type="text" 
-                    name="search_id" 
-                    class="form-control" 
-                    placeholder="Enter Student ID" 
-                    value="<?= isset($_GET['search_id']) ? htmlspecialchars($_GET['search_id']) : '' ?>" 
-                >
-                <button type="submit" class="search-btn btn btn-success px-4">Search</button>
-            </form>
-        </div>
-    </div>
+                    <!-- Search Card -->
+                    <div class="card shadow-sm mb-5">
+                        <div class="card-body">
+                            <form method="get" class="d-flex">
+                                <input 
+                                    type="text" 
+                                    name="search_id" 
+                                    class="form-control" 
+                                    placeholder="Enter Student ID" 
+                                    value="<?= isset($_GET['search_id']) ? htmlspecialchars($_GET['search_id']) : '' ?>" 
+                                >
+                                <button type="submit" class="search-btn btn btn-success px-4">Search</button>
+                            </form>
+                        </div>
+                    </div>
 
-    <?php if ($searchResult): ?>
-        <div class="card shadow-sm">
-            <div class="card-header bg-success text-white fw-bold">Search Results</div>
-            <div class="card-body p-0">
-                <table class="table table-hover mb-0">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Student ID</th>
-                            <th>First Name</th>
-                            <th>Last Name</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td><?= htmlspecialchars($searchResult['id']) ?></td>
-                            <td><?= htmlspecialchars($searchResult['first_name']) ?></td>
-                            <td><?= htmlspecialchars($searchResult['last_name']) ?></td>
-                            <td>
-                                <?php if ($searchResult['already_in_class']): ?>
-                                    <button class="btn btn-sm btn-secondary" disabled>Already Enrolled</button>
-                                <?php else: ?>
-                                    <form action="new_student.php?search_id=<?= $searchResult['id']; ?>" method="post" class="d-inline">
-                                        <input type="hidden" name="add_student_id" value="<?= htmlspecialchars($searchResult['id']) ?>">
-                                        <button type="submit" class="btn btn-sm btn-primary">
-                                            <i class="bi bi-person-plus"></i> Add
-                                        </button>
-                                    </form>
-                                <?php endif; ?>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    <?php elseif (isset($_GET['search_id'])): ?>
-        <div class="alert alert-danger">No student found with that ID.</div>
-    <?php endif; ?>
-</div>
+                    <?php if ($searchResult): ?>
+                        <div class="card shadow-sm">
+                            <div class="card-header bg-success text-white fw-bold">Search Results</div>
+                            <div class="card-body p-0">
+                                <table class="table table-hover mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Student ID</th>
+                                            <th>First Name</th>
+                                            <th>Last Name</th>
+                                            <th>Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td><?= htmlspecialchars($searchResult['id']) ?></td>
+                                            <td><?= htmlspecialchars($searchResult['first_name']) ?></td>
+                                            <td><?= htmlspecialchars($searchResult['last_name']) ?></td>
+                                            <td>
+                                                <?php if ($searchResult['already_in_class']): ?>
+                                                    <button class="btn btn-sm btn-secondary" disabled>Already Enrolled</button>
+                                                <?php else: ?>
+                                                    <form action="new_student.php?search_id=<?= $searchResult['id']; ?>" method="post" class="d-inline">
+                                                        <input type="hidden" name="add_student_id" value="<?= htmlspecialchars($searchResult['id']) ?>">
+                                                        <button type="submit" class="btn btn-sm btn-primary">
+                                                            <i class="bi bi-person-plus"></i> Add
+                                                        </button>
+                                                    </form>
+                                                <?php endif; ?>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    <?php elseif (isset($_GET['search_id'])): ?>
+                        <div class="alert alert-danger">No student found with that ID.</div>
+                    <?php endif; ?>
+                </div>
 
 
         </div>

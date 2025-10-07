@@ -8,7 +8,7 @@ if ((!isset($_SESSION["username"]) && !isset($_SESSION["user_id"])) || !isset($_
     header("Location: ../welcome.php");
     exit;
 }
-require "../backend/functions.php";
+require "../backend/dashboard_functions.php";
 
 $grade_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 if (!$grade_id) {
@@ -87,10 +87,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <form id="editGradeForm" method="POST">
                         <div class="row mb-4">
                             <div class="col-md-6">
-                                <h2 class="mb-0">
-                                    <a href="grades.php" class="btn btn-link px-0" style="font-size: 1.5rem; text-decoration: none;">
+                                <h2 class="mb-2">
+                                    <!-- <a href="grades.php" class="btn btn-link px-0" style="font-size: 1.5rem;">
                                         <i class="fas fa-arrow-left text-dark back-button me-2"></i>
-                                    </a>
+                                    </a> -->
                                     Edit Grade for <?= htmlspecialchars($grade['first_name'] . ' ' . $grade['last_name']) ?>
                                 </h2>
                                 <p class="text-muted">Student ID: <?= htmlspecialchars($grade['student_id']) ?> | Class: <?= htmlspecialchars($grade['class_name']) ?></p>
@@ -106,8 +106,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </div>
                         </div>
                         <div class="card">
-                            <div class="card-header py-3">
-                                <h5 class="mb-0"><i class="fas fa-user me-2"></i>Student Grade</h5>
+                            <div class="card-header py-3 text-white" style="background-color: var(--primary-color);">
+                                <h5 class="mb-0"><i class="fas fa-user me-2"></i>Edit Student Grade</h5>
                             </div>
                             <div class="card-body">
                                 <div class="table-responsive">
@@ -137,13 +137,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                                         : 0;
 
                                                     // Percent cell color
-                                                   list($letter, $cellClass) = getGradeAndColor($percent);
+                                                   list($letter, $colorClass) = getGradeAndColor($percent);
                                                 ?>
-                                                <td class="<?= $percentClass ?>" id="percentCell">
+                                                <td class="<?= $colorClass ?> text-center" id="percentCell">
                                                     <?= $percent . '%' ?>
                                                 </td>
                                                 <!-- Letter grade logic -->
-                                                <td class="<?= $cellClass ?>" id="gradeCell">
+                                                <td class="<?= $colorClass ?> text-center" id="gradeCell">
                                                     <?= $letter ?>
                                                 </td>
 
@@ -164,42 +164,55 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     <script src="../assets/js/main.js"></script>
     <script>
-    // Auto-calculate percentage and grade when score changes
-    document.addEventListener('DOMContentLoaded', function() {
-        const scoreInput = document.getElementById('scoreInput');
-        const maxScoreInput = document.getElementById('maxScoreHidden');
-        const percentCell = document.getElementById('percentCell');
-        const gradeCell = document.getElementById('gradeCell');
-        function updatePercentAndGrade() {
-            const maxScore = parseFloat(maxScoreInput.value) || 0;
-            let score = parseFloat(scoreInput.value) || 0;
-            if (score > maxScore) {
-                alert('Score cannot be greater than the maximum score (' + maxScore + ').');
-                score = maxScore;
-                scoreInput.value = maxScore;
+        document.addEventListener('DOMContentLoaded', function() {
+            const scoreInput = document.getElementById('scoreInput');
+            const maxScoreInput = document.getElementById('maxScoreHidden');
+            const percentCell = document.getElementById('percentCell');
+            const gradeCell = document.getElementById('gradeCell');
+            function updatePercentAndGrade() {
+                const maxScore = parseFloat(maxScoreInput.value) || 0;
+                let score = parseFloat(scoreInput.value) || 0;
+                if (score > maxScore) {
+                    alert('Score cannot be greater than the maximum score (' + maxScore + ').');
+                    score = maxScore;
+                    scoreInput.value = maxScore;
+                }
+                let percent = maxScore > 0 ? ((score / maxScore) * 85) + 15 : 0;
+                percentCell.textContent = percent.toFixed(0) + '%';
+                let letter = 'F';
+                let cellClass = 'text-center text-danger'; // F = red
+                if (percent >= 81) {
+                    letter = 'A'; 
+                    cellClass = 'text-center text-success'; // green
+                } else if (percent > 74) {
+                    letter = 'C'; 
+                    cellClass = 'text-center text-warning'; // yellow
+                } else {
+                    letter = 'F'; 
+                    cellClass = 'text-center text-danger'; // red
+                }
+                gradeCell.textContent = letter;
+                gradeCell.className = cellClass;
+                percentCell.className = cellClass;
             }
-            let percent = maxScore > 0 ? ((score / maxScore) * 85) + 15 : 0;
-            percentCell.textContent = percent.toFixed(0) + '%';
-            let letter = 'F';
-            let cellClass = 'text-center text-danger'; // F = red
-            if (percent >= 81) {
-                letter = 'A'; 
-                cellClass = 'text-center text-success'; // green
-            } else if (percent > 74) {
-                letter = 'C'; 
-                cellClass = 'text-center text-warning'; // yellow
-            } else {
-                letter = 'F'; 
-                cellClass = 'text-center text-danger'; // red
+            if (scoreInput) {
+                scoreInput.addEventListener('input', updatePercentAndGrade);
             }
-            gradeCell.textContent = letter;
-            gradeCell.className = cellClass;
-            percentCell.className = cellClass;
-        }
-        if (scoreInput) {
-            scoreInput.addEventListener('input', updatePercentAndGrade);
-        }
-    });
+            document.getElementById("editGradeForm").addEventListener("submit", function (event) {
+                event.preventDefault(); // stop immediate submission
+
+                    if (confirm("Do you want to save the grades?")) {
+                        // Optionally show a success message before submitting
+                        alert("Save saved successfully!");
+                        this.submit(); // proceed with form submission
+                    } else {
+                        if (confirm("Cancel without saving?")) {
+                            navigateTo('GradesPage');
+                        }
+                        // else: stay on the page
+                    }
+                });
+        });
     </script>
     <style>
     /* Custom color for D grade (orange) */

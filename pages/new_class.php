@@ -4,6 +4,10 @@ use FontLib\Table\Type\head;
 
     include '../db/connect.php'; // adjust path to your PDO/MySQLi connection
     session_start();
+    if ((!isset($_SESSION["username"]) && !isset($_SESSION["user_id"]))) {
+        header("Location: ../welcome.php");
+        exit;
+    }
     if(isset($_SESSION["class_id"])) {
         unset($_SESSION["class_id"]);
     }
@@ -13,12 +17,11 @@ use FontLib\Table\Type\head;
             $stmt = $pdo->prepare("SELECT COUNT(*) FROM class WHERE course_code = ?");
             $stmt->execute([$code]);
             $exists = $stmt->fetchColumn();
-        } while ($exists > 0); // loop until unique
+        } while ($exists > 0); 
         
         return $code;
     }
 
-    // Only generate a new code if not already in session
     if (!isset($_SESSION['course_code'])) {
         $_SESSION['course_code'] = generateUniqueCourseCode($pdo);
     }

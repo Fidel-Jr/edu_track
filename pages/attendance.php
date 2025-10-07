@@ -1,5 +1,96 @@
 <?php 
-    require_once '../backend/attendance_functions.php';
+
+    include "../db/connect.php";
+    session_start();
+    if ((!isset($_SESSION["username"]) && !isset($_SESSION["user_id"])) || !isset($_SESSION["class_id"])) {
+        header("Location: ../welcome.php");
+        exit;
+    }
+
+    // Apply filters
+    $filters = [];
+    $params = [':class_id' => $_SESSION["class_id"]];
+
+    if (!empty($_GET['day'])) {
+        $filters[] = "DAY(attendance.date) = :day";
+        $params[':day'] = $_GET['day'];
+    }   
+    if (!empty($_GET['month'])) {
+        $filters[] = "MONTH(attendance.date) = :month";
+        $params[':month'] = $_GET['month'];
+    }
+    if (!empty($_GET['status'])) {
+        $filters[] = "attendance.status = :status";
+        $params[':status'] = $_GET['status'];
+    }
+    if (!empty($_GET['student'])) {
+        $filters[] = "(students.first_name LIKE :student OR students.last_name LIKE :student)";
+        $params[':student'] = "%" . $_GET['student'] . "%";
+    }
+
+    $filterSql = "";
+    if (!empty($filters)) {
+        $filterSql = " AND " . implode(" AND ", $filters);
+    }
+
+    // Fetch class name from database
+    $stmt = $pdo->prepare("SELECT course_name FROM class WHERE id = :class_id");
+    $stmt->execute([':class_id' => $_SESSION["class_id"]]);
+    $class = $stmt->fetch(PDO::FETCH_ASSOC);
+    $className = $class["course_name"];
+
+    // Attendance pagination
+    $attendancePage = isset($_GET['attendance_page']) && is_numeric($_GET['attendance_page']) 
+        ? (int) $_GET['attendance_page'] : 1;
+    $attendancePerPage = 10;
+    $attendanceOffset = ($attendancePage - 1) * $attendancePerPage;
+
+    // Count total attendance rows
+    $countSql = "SELECT COUNT(*) 
+                 FROM attendance
+                 INNER JOIN student_classes 
+                     ON attendance.student_class_id = student_classes.id
+                 INNER JOIN students 
+                     ON student_classes.student_id = students.id
+                 INNER JOIN class 
+                     ON student_classes.class_id = class.id
+                 WHERE class.id = :class_id $filterSql";
+    $countStmt = $pdo->prepare($countSql);
+    $countStmt->execute($params);
+    $totalAttendanceRows = $countStmt->fetchColumn();
+    $totalAttendancePages = ceil($totalAttendanceRows / $attendancePerPage);
+
+    // Fetch paginated rows
+    $sql = "SELECT 
+                attendance.*, students.first_name, students.last_name, students.id AS student_id
+            FROM attendance
+            INNER JOIN student_classes 
+                ON attendance.student_class_id = student_classes.id
+            INNER JOIN students 
+                ON student_classes.student_id = students.id
+            INNER JOIN class 
+                ON student_classes.class_id = class.id
+            WHERE class.id = :class_id $filterSql
+            ORDER BY attendance.date DESC, students.last_name ASC
+            LIMIT :limit OFFSET :offset";
+    $stmt = $pdo->prepare($sql);
+    foreach ($params as $key => $value) {
+        if ($key === ':class_id') {
+            $stmt->bindValue($key, $value, PDO::PARAM_INT);
+        } elseif ($key === ':day' || $key === ':month') {
+            $stmt->bindValue($key, $value, PDO::PARAM_INT);
+        } else {
+            $stmt->bindValue($key, $value, PDO::PARAM_STR);
+        }
+    }
+    $stmt->bindValue(':limit', $attendancePerPage, PDO::PARAM_INT);
+    $stmt->bindValue(':offset', $attendanceOffset, PDO::PARAM_INT);
+    $stmt->execute();
+    $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $queryString = http_build_query(array_merge($_GET, ['attendance_page' => null]));
+    
+
 ?>
 
 <!DOCTYPE html>
@@ -18,10 +109,6 @@
         body {
             background-color: #f5f7fb;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-
-        .btn-primary:focus{
-            background-color: green !important;
         }
 
         body.modal-open {
@@ -85,15 +172,7 @@
         .page-link {
             color: var(--primary-color);
         }
-        .page-link:hover {
-            color: var(--primary-color);
-        }
         
-        .page-link:focus {
-            color: white !important;
-            background-color: green;
-        }
-
         .attendance-actions {
             display: flex;
             gap: 10px;
@@ -235,24 +314,24 @@
                             </tr>
                         </thead>
                         <tbody>
-                            <?php if (!empty($attendanceRows)): ?>
-                                <?php foreach ($attendanceRows as $row): ?>
+                            <?php if (!empty($students)): ?>
+                                <?php foreach ($students as $student) { ?>
                                     <tr>
-                                        <td><?= htmlspecialchars($row["student_id"]) ?></td>
-                                        <td><?= htmlspecialchars($row["first_name"] . " " . $row["last_name"]) ?></td>
-                                        <td><?= htmlspecialchars($row["date"]) ?></td>
+                                        <td><?php echo $student["student_id"] ?></td>
+                                        <td><?php echo $student["first_name"] . " " . $student["last_name"] ?></td>
+                                        <td><?php echo $student["date"] ?></td>
                                         <td>
-                                            <?php if ($row["status"] === "Present"): ?>
+                                            <?php if ($student["status"] === "Present") { ?>
                                                 <span class="status-present text-success">Present</span>
-                                            <?php else: ?>
+                                            <?php } else { ?>
                                                 <span class="status-absent text-danger">Absent</span>
-                                            <?php endif; ?>
+                                            <?php } ?>
                                         </td>
                                         <td class="attendance-actions">
-                                            <a href="edit_attendance.php?id=<?= htmlspecialchars($row["id"]) ?>" class="btn btn-sm btn-primary"><i class="fas fa-edit"></i></a>
+                                            <a href="edit_attendance.php?id=<?= htmlspecialchars($student["id"]) ?>" class="btn btn-sm btn-warning"><i class="fas fa-edit text-white"></i></a>
                                         </td>
                                     </tr>
-                                <?php endforeach; ?>
+                                <?php } ?>
                             <?php else: ?>
                                 <tr>
                                     <td colspan="6" class="text-center text-muted">No attendance records found.</td>
@@ -270,36 +349,33 @@
                                 <a class="page-link" href="?<?= $queryString ?>&attendance_page=<?= max(1, $attendancePage - 1) ?>">Previous</a>
                             </li>
 
-                            <!-- First page --> 
-                            <?php if ($attendancePage > 3): ?>
-                                <li class="page-item">
-                                    <a class="page-link" href="?<?= $queryString ?>&attendance_page=1">1</a>
-                                </li>
-                                <?php if ($attendancePage > 4): ?>
-                                    <li class="page-item disabled">
-                                        <span class="page-link">...</span>
-                                    </li>
-                                <?php endif; ?>
-                            <?php endif; ?>
+                            <!-- Page numbers -->
+                            <?php
+$adjacents = 2; // how many pages to show on each side of current
+$start = max(1, $attendancePage - $adjacents);
+$end = min($totalAttendancePages, $attendancePage + $adjacents);
 
-                            <!-- Page numbers around current page -->
-                            <?php for ($i = max(1, $attendancePage - 2); $i <= min($totalAttendancePages, $attendancePage + 2); $i++): ?>
-                                <li class="page-item <?= ($attendancePage == $i) ? 'active' : '' ?>">
-                                    <a class="page-link" href="?<?= $queryString ?>&attendance_page=<?= $i ?>"><?= $i ?></a>
-                                </li>
-                            <?php endfor; ?>
+if ($start > 1) {
+    // First page
+    echo '<li class="page-item"><a class="page-link" href="?' . $queryString . '&attendance_page=1">1</a></li>';
+    if ($start > 2) {
+        echo '<li class="page-item disabled"><span class="page-link">...</span></li>';
+    }
+}
 
-                            <!-- Last page -->
-                            <?php if ($attendancePage < $totalAttendancePages - 2): ?>
-                                <?php if ($attendancePage < $totalAttendancePages - 3): ?>
-                                    <li class="page-item disabled">
-                                        <span class="page-link">...</span>
-                                    </li>
-                                <?php endif; ?>
-                                <li class="page-item">
-                                    <a class="page-link" href="?<?= $queryString ?>&attendance_page=<?= $totalAttendancePages ?>"><?= $totalAttendancePages ?></a>
-                                </li>
-                            <?php endif; ?>
+for ($i = $start; $i <= $end; $i++) {
+    $active = ($attendancePage == $i) ? 'active' : '';
+    echo '<li class="page-item ' . $active . '"><a class="page-link" href="?' . $queryString . '&attendance_page=' . $i . '">' . $i . '</a></li>';
+}
+
+if ($end < $totalAttendancePages) {
+    if ($end < $totalAttendancePages - 1) {
+        echo '<li class="page-item disabled"><span class="page-link">...</span></li>';
+    }
+    // Last page
+    echo '<li class="page-item"><a class="page-link" href="?' . $queryString . '&attendance_page=' . $totalAttendancePages . '">' . $totalAttendancePages . '</a></li>';
+}
+?>
 
                             <!-- Next button -->
                             <li class="page-item <?= ($attendancePage >= $totalAttendancePages) ? 'disabled' : '' ?>">
@@ -356,10 +432,20 @@
                                 <tbody>
                                     <?php 
 
-                                        $students = fetchStudentList($pdo, $_SESSION["class_id"]);
+                                        $sql = "SELECT * FROM students
+                                                INNER JOIN student_classes 
+                                                ON students.id = student_classes.student_id
+                                                WHERE student_classes.class_id = :class_id
+                                                ORDER BY students.last_name, students.first_name";
+                                        $stmt = $pdo->prepare($sql);
+                                        $stmt->execute([':class_id' => $_SESSION["class_id"]]);
+
+                                        // Fetch all results
+                                        $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                         $counter = 1;
-                                        foreach ($students as $student) {
-                                        ?>
+                                        foreach ($students as $student){
+                                           
+                                             ?>
                                         <tr>
                                             <td><?php echo $counter++; ?></td>
                                             <td><?php echo htmlspecialchars($student['student_id']); ?></td>

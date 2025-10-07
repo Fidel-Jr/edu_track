@@ -1,92 +1,104 @@
 <?php
-require "../db/connect.php";
-require "../backend/helpers.php";
+    require "../db/connect.php";
+    require "../backend/helpers.php";
 
-// --- Modular Functions ---
-function getPageInfo($param, $recordsPerPage = 10) {
-    $page = isset($_GET[$param]) && is_numeric($_GET[$param]) ? (int)$_GET[$param] : 1;
-    $offset = ($page - 1) * $recordsPerPage;
-    return [$page, $offset];
-}
+    // --- Modular Functions ---
+    function getPageInfo($param, $recordsPerPage = 10) {
+        $page = isset($_GET[$param]) && is_numeric($_GET[$param]) ? (int)$_GET[$param] : 1;
+        $offset = ($page - 1) * $recordsPerPage;
+        return [$page, $offset];
+    }
 
-function getTotalRows($pdo, $sql, $classId) {
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([':class_id' => $classId]);
-    return $stmt->fetchColumn();
-}
+    function getTotalRows($pdo, $sql, $classId) {
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([':class_id' => $classId]);
+        return $stmt->fetchColumn();
+    }
 
-function fetchGradeSummary($pdo, $classId, $limit, $offset) {
-    $sql = "SELECT 
-                s.id AS student_id,
-                CONCAT(s.first_name, ' ', s.last_name) AS student_name,
-                sc.class_id,
-                ROUND((
-                    (CASE 
-                        WHEN COUNT(CASE WHEN g.activity_type = 'Exam' THEN 1 END) > 0 
-                        THEN AVG(CASE WHEN g.activity_type = 'Exam' THEN g.percentage END) 
-                        ELSE 0 
-                     END) * 0.6
-                    +
-                    (CASE 
-                        WHEN COUNT(CASE WHEN g.activity_type <> 'Exam' THEN 1 END) > 0 
-                        THEN AVG(CASE WHEN g.activity_type <> 'Exam' THEN g.percentage END) 
-                        ELSE 0 
-                     END) * 0.4
-                ), 1) AS overall_grade_percentage,
-                MAX(g.grade) AS grade
-            FROM student_classes sc
-            JOIN students s ON sc.student_id = s.id
-            LEFT JOIN grades g ON g.student_class_id = sc.id
-            WHERE sc.class_id = :class_id
-            GROUP BY s.id, sc.class_id
-            LIMIT :limit OFFSET :offset";
-    
-    $stmt = $pdo->prepare($sql);
-    $stmt->bindValue(':class_id', $classId, PDO::PARAM_INT);
-    $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
-    $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
-    $stmt->execute();
-    return $stmt->fetchAll(PDO::FETCH_ASSOC);
-}
+    function fetchGradeSummary($pdo, $classId, $limit, $offset) {
+        $sql = "SELECT 
+                    s.id AS student_id,
+                    CONCAT(s.first_name, ' ', s.last_name) AS student_name,
+                    sc.class_id,
+                    ROUND((
+                        (CASE 
+                            WHEN COUNT(CASE WHEN g.activity_type = 'Exam' THEN 1 END) > 0 
+                            THEN AVG(CASE WHEN g.activity_type = 'Exam' THEN g.percentage END) 
+                            ELSE 0 
+                        END) * 0.6
+                        +
+                        (CASE 
+                            WHEN COUNT(CASE WHEN g.activity_type <> 'Exam' THEN 1 END) > 0 
+                            THEN AVG(CASE WHEN g.activity_type <> 'Exam' THEN g.percentage END) 
+                            ELSE 0 
+                        END) * 0.4
+                    ), 1) AS overall_grade_percentage,
+                    MAX(g.grade) AS grade
+                FROM student_classes sc
+                JOIN students s ON sc.student_id = s.id
+                LEFT JOIN grades g ON g.student_class_id = sc.id
+                WHERE sc.class_id = :class_id
+                GROUP BY s.id, sc.class_id
+                HAVING 1=1
+                ORDER BY s.last_name, s.first_name
+                LIMIT :limit OFFSET :offset";
+        
+        $stmt = $pdo->prepare($sql);
+        $stmt->bindValue(':class_id', $classId, PDO::PARAM_INT);
+        $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
 
 
-function fetchAttendanceSummary($pdo, $classId, $limit, $offset) {
-    $sql = "SELECT 
-                s.id AS student_id,
-                CONCAT(s.first_name, ' ', s.last_name) AS student_name,
-                sc.class_id,
-                ROUND((SUM(CASE WHEN a.status = 'Present' THEN 1 ELSE 0 END) * 100.0) / COUNT(a.id), 1) AS attendance_rate
-            FROM student_classes sc
-            JOIN students s ON sc.student_id = s.id
-            LEFT JOIN attendance a ON a.student_class_id = sc.id
-            WHERE sc.class_id = :class_id
-            GROUP BY s.id, sc.class_id
-            LIMIT :limit OFFSET :offset";
-    $stmt = $pdo->prepare($sql);
-    $stmt->bindValue(':class_id', $classId, PDO::PARAM_INT);
-    $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
-    $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
-    $stmt->execute();
-    return $stmt->fetchAll(PDO::FETCH_ASSOC);
-}
+    function fetchAttendanceSummary($pdo, $classId, $limit, $offset) {
+        $sql = "SELECT 
+                    s.id AS student_id,
+                    CONCAT(s.first_name, ' ', s.last_name) AS student_name,
+                    sc.class_id,
+                    ROUND((SUM(CASE WHEN a.status = 'Present' THEN 1 ELSE 0 END) * 100.0) / COUNT(a.id), 1) AS attendance_rate
+                FROM student_classes sc
+                JOIN students s ON sc.student_id = s.id
+                LEFT JOIN attendance a ON a.student_class_id = sc.id
+                WHERE sc.class_id = :class_id
+                GROUP BY s.id, sc.class_id
+                ORDER BY s.last_name, s.first_name
+                LIMIT :limit OFFSET :offset";
+        $stmt = $pdo->prepare($sql);
+        $stmt->bindValue(':class_id', $classId, PDO::PARAM_INT);
+        $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
 
-// --- Main Script ---
-$recordsPerPage = 10;
-$classId = $_SESSION["class_id"];
+    // --- Main Script ---
+    $recordsPerPage = 10;
+    $classId = $_SESSION["class_id"];
 
-// Grades
-list($gradesPage, $gradesOffset) = getPageInfo('grades_page', $recordsPerPage);
-$totalGradeRows = getTotalRows($pdo, "SELECT COUNT(DISTINCT s.id) FROM student_classes sc JOIN students s ON sc.student_id = s.id WHERE sc.class_id = :class_id", $classId);
-$totalGradePages = ceil($totalGradeRows / $recordsPerPage);
-$grades = fetchGradeSummary($pdo, $classId, $recordsPerPage, $gradesOffset);
+    // Grades
+    list($gradesPage, $gradesOffset) = getPageInfo('grades_page', $recordsPerPage);
+    $totalGradeRows = getTotalRows($pdo, "SELECT COUNT(DISTINCT s.id) FROM student_classes sc JOIN students s ON sc.student_id = s.id WHERE sc.class_id = :class_id", $classId);
+    $totalGradePages = ceil($totalGradeRows / $recordsPerPage);
+    $grades = fetchGradeSummary($pdo, $classId, $recordsPerPage, $gradesOffset);
 
-// Attendance
-list($attendancePage, $attendanceOffset) = getPageInfo('attendance_page', $recordsPerPage);
-$totalAttendanceRows = getTotalRows($pdo, "SELECT COUNT(DISTINCT s.id) FROM student_classes sc JOIN students s ON sc.student_id = s.id WHERE sc.class_id = :class_id", $classId);
-$totalAttendancePages = ceil($totalAttendanceRows / $recordsPerPage);
-$attendance = fetchAttendanceSummary($pdo, $classId, $recordsPerPage, $attendanceOffset);
+    // Attendance
+    list($attendancePage, $attendanceOffset) = getPageInfo('attendance_page', $recordsPerPage);
+    $totalAttendanceRows = getTotalRows($pdo, "SELECT COUNT(DISTINCT s.id) FROM student_classes sc JOIN students s ON sc.student_id = s.id WHERE sc.class_id = :class_id", $classId);
+    $totalAttendancePages = ceil($totalAttendanceRows / $recordsPerPage);
+    $attendance = fetchAttendanceSummary($pdo, $classId, $recordsPerPage, $attendanceOffset);
 ?>
-
+<style>
+    /* Pagination link focus style */
+    .pagination .page-link:focus,
+    .pagination .page-link:active {
+        background-color: green !important;
+        color: white !important;
+        border-color: green !important;
+        outline: none !important; /* remove default focus outline */
+    }
+</style>
 <!-- ========================= -->
 <!-- Grade Summary Table -->
 <!-- ========================= -->
@@ -147,7 +159,7 @@ $attendance = fetchAttendanceSummary($pdo, $classId, $recordsPerPage, $attendanc
             <ul class="pagination justify-content-center mt-4">
                 <!-- Previous button -->
                 <li class="page-item <?= ($gradesPage <= 1) ? 'disabled' : '' ?>">
-                    <a class="page-link text-dark" href="?grades_page=<?= max(1, $gradesPage - 1) ?>&attendance_page=<?= $attendancePage ?>">Previous</a>
+                    <a class="page-link" href="?grades_page=<?= max(1, $gradesPage - 1) ?>&attendance_page=<?= $attendancePage ?>" style="<?= ($gradesPage > 1 ? 'color: var(--primary-color);' : 'color: #333;') ?>">Previous</a>
                 </li>
 
                 <!-- First page -->
@@ -186,7 +198,7 @@ $attendance = fetchAttendanceSummary($pdo, $classId, $recordsPerPage, $attendanc
 
                 <!-- Next button -->
                 <li class="page-item <?= ($gradesPage >= $totalGradePages) ? 'disabled' : '' ?>">
-                    <a class="page-link text-dark" href="?grades_page=<?= min($totalGradePages, $gradesPage + 1) ?>&attendance_page=<?= $attendancePage ?>">Next</a>
+                    <a class="page-link" href="?grades_page=<?= min($totalGradePages, $gradesPage + 1) ?>&attendance_page=<?= $attendancePage ?>" style="<?= ($gradesPage < $totalGradePages ? 'color: var(--primary-color);' : 'color: #333;') ?>">Next</a>
                 </li>
             </ul>
         </nav>
@@ -264,7 +276,7 @@ $attendance = fetchAttendanceSummary($pdo, $classId, $recordsPerPage, $attendanc
             <ul class="pagination justify-content-center mt-4">
                 <!-- Previous button -->
                 <li class="page-item <?= ($attendancePage <= 1) ? 'disabled' : '' ?>">
-                    <a class="page-link text-dark" href="?attendance_page=<?= max(1, $attendancePage - 1) ?>&grades_page=<?= $gradesPage ?>">Previous</a>
+                    <a class="page-link" href="?attendance_page=<?= max(1, $attendancePage - 1) ?>&grades_page=<?= $gradesPage ?>" style="<?= ($attendancePage > 1 ? 'color: var(--primary-color);' : 'color: #333;') ?>">Previous</a>
                 </li>
 
                 <!-- First page -->
@@ -302,8 +314,8 @@ $attendance = fetchAttendanceSummary($pdo, $classId, $recordsPerPage, $attendanc
                 <?php endif; ?>
 
                 <!-- Next button -->
-                <li class="page-item text-dark <?= ($attendancePage >= $totalAttendancePages) ? 'disabled' : '' ?>">
-                    <a class="page-link text-dark" href="?attendance_page=<?= min($totalAttendancePages, $attendancePage + 1) ?>&grades_page=<?= $gradesPage ?>">Next</a>
+                <li class="page-item <?= ($attendancePage >= $totalAttendancePages) ? 'disabled' : '' ?>">
+                    <a class="page-link" href="?attendance_page=<?= min($totalAttendancePages, $attendancePage + 1) ?>&grades_page=<?= $gradesPage ?>" style="<?= ($attendancePage < $totalAttendancePages ? 'color: var(--primary-color);' : 'color: #333;') ?>">Next</a>
                 </li>
             </ul>
         </nav>

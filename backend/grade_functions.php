@@ -1,6 +1,6 @@
 <?php 
 
-        include '../db/connect.php';
+    include '../db/connect.php';
     session_start();
     if ((!isset($_SESSION["username"]) && !isset($_SESSION["user_id"])) || !isset($_SESSION["class_id"])) {
         header("Location: ../welcome.php");

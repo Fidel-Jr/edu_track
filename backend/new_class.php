@@ -4,7 +4,7 @@
 
     // Check if teacher is logged in
     if (!isset($_SESSION["user_info"]["id"])) {
-        header("Location: index.php");
+        header("Location: ../index.php");
         exit;
     }
 
@@ -38,7 +38,7 @@
 
             // OPTIONAL: regenerate a new course code after saving
             unset($_SESSION['course_code']);
-            header("Location: ../pages/new_class.php");
+            header("Location: ../welcome.php");
             exit;
 
         } catch (PDOException $e) {

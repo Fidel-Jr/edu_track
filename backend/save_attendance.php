@@ -5,13 +5,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $students = $_POST['students'];  // array of student attendance
     $date = $_POST['date'];
 
-    $sql = "INSERT INTO attendance (student_class_id, date, status) 
-            VALUES (:student_class_id, :date, :status)";
+    $sql = "CALL AddAttendance(:student_class_id, :date, :status)";
     $stmt = $pdo->prepare($sql);
 
     foreach ($students as $student) {
+        // Defensive: make sure student has keys
+        if (!isset($student['id']) || !isset($student['status'])) {
+            continue;
+        }
+
         $stmt->execute([
-            ':student_class_id' => $student['id'], // comes from your form
+            ':student_class_id' => $student['id'],
             ':date'             => $date,
             ':status'           => $student['status']
         ]);

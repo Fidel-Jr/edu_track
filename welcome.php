@@ -1,8 +1,31 @@
 <?php
     include './db/connect.php';
     session_start();
-    if (!isset($_SESSION["username"]) && !isset($_SESSION["user_id"])) {
+    if (!isset($_SESSION["user_info"]["username"]) && !isset($_SESSION["user_id"])) {
         header("Location: index.php");
+        exit;
+    }
+
+    // Handle class deletion
+    if (isset($_POST['delete_class_id'])) {
+        $classId = $_POST['delete_class_id'];
+
+        // Delete related attendance and grades
+        $stmt = $pdo->prepare("SELECT id FROM student_classes WHERE class_id = ?");
+        $stmt->execute([$classId]);
+        $studentClassIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+        if ($studentClassIds) {
+            $in = str_repeat('?,', count($studentClassIds) - 1) . '?';
+            $pdo->prepare("DELETE FROM attendance WHERE student_class_id IN ($in)")->execute($studentClassIds);
+            $pdo->prepare("DELETE FROM grades WHERE student_class_id IN ($in)")->execute($studentClassIds);
+            $pdo->prepare("DELETE FROM student_classes WHERE id IN ($in)")->execute($studentClassIds);
+        }
+
+        // Delete the class itself
+        $pdo->prepare("DELETE FROM class WHERE id = ?")->execute([$classId]);
+
+        header("Location: welcome.php");
         exit;
     }
 ?>
@@ -174,7 +197,7 @@
         <main class="my-5">
             <div class="container-wrapper">
                 <div class="header-section">
-                    <h1>Welcome, <?php echo $_SESSION["username"] ?> <span class="ms-2">👋</span></h1>
+                    <h1>Welcome, <?php echo $_SESSION["user_info"]["username"] ?> <span class="ms-2">👋</span></h1>
                     <p class="lead mb-0">Please select a class to continue</p>
                 </div>
                 
@@ -203,15 +226,23 @@
                                     <i class="fas fa-calculator"></i>
                                 </div>
                                 <div class="class-details flex-grow-1">
-                                    <h5 class="mb-1"><?php echo $class["course_name"] ?> <span class="h6 text-secondary" style="opacity: 80%;"><?php echo $class["course_title"] ?></span> </h5>
-                                    <p class="mb-1 text-muted">Course Code: <?php echo $class["course_code"] ?></p>
-                                    <small class="text-muted">Time: <?php echo date("H:i", strtotime($class["time_from"])) . " - " . date("H:i", strtotime($class["time_to"])); ?> | Room: <?php echo $class["room"] ?></small>
+                                    <h5 class="mb-1"><?= $class["course_name"] ?> <span class="h6 text-secondary" style="opacity: 80%;"><?= $class["course_title"] ?></span> </h5>
+                                    <p class="mb-1 text-muted">Course Code: <?= $class["course_code"] ?></p>
+                                    <small class="text-muted">Time: <?= date("H:i", strtotime($class["time_from"])) . " - " . date("H:i", strtotime($class["time_to"])); ?> | Room: <?= $class["room"] ?></small>
                                 </div>
                                 <div class="class-action">
-                                    <form action="./backend/enter_class.php" method="POST">
-                                        <input type="hidden" name="class_id" value="<?php echo $class['id']; ?>">
+                                    <form action="./backend/enter_class.php" method="POST" style="display:inline;">
+                                        <input type="hidden" name="class_id" value="<?= $class['id']; ?>">
                                         <button type="submit" class="btn btn-enter btn-sm">Enter Class</button>
                                     </form>
+                                    <div class="mx-2 mt-2">
+                                        <a href="pages/edit_class.php?id=<?= $class['id'] ?>" class="text-warning text-decoration-none">Edit</a>
+                                        <span class="text-light">|</span>
+                                        <form action="" method="POST" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this class and all related records?');">
+                                            <input type="hidden" name="delete_class_id" value="<?= $class['id'] ?>">
+                                            <button type="submit" class="btn btn-link text-danger text-decoration-none p-0 m-0" style="vertical-align: baseline;">Remove</button>
+                                        </form>
+                                    </div>
                                 </div>
                             </div>
                         </div>

@@ -72,3 +72,4 @@ function getTotalActivitiesInClass($pdo, $classId) {
 
     return $result ? $result['total_activities'] : 0;
 }
+

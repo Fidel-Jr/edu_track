@@ -21,37 +21,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         die("Error: Student class IDs and scores count mismatch.");
     }
     
-    // Prepare SQL statement
-    $sql = "INSERT INTO grades (
-                student_class_id, activity_type, activity_name, score, maximum_score, percentage, grade, date
-            ) 
-            VALUES (
-                :student_class_id, :activity_type, :activity_name, :score, :maximum_score, :percentage, :grade, :date
-            )";
-    
+    $sql = "CALL AddGrade(:student_class_id, :activity_type, :activity_name, :score, :max_score, :grade_date)";
     $stmt = $pdo->prepare($sql);
-    
-    // Insert each student's grade
+
     for ($i = 0; $i < count($studentClassIds); $i++) {
-        $studentClassId = $studentClassIds[$i];
-        $score = $scores[$i];
-        
-        // Calculate percentage and grade
-        $percentage = (($score / $maxScore) * 85) +  15;
-        list($letter, $colorClass) = getGradeAndColor($percentage);
-        $grade = $letter;
-        
-        // Bind parameters and execute
-        $stmt->bindParam(':student_class_id', $studentClassId);
-        $stmt->bindParam(':activity_type', $activityType);
-        $stmt->bindParam(':activity_name', $activityName);
-        $stmt->bindParam(':score', $score);
-        $stmt->bindParam(':maximum_score', $maxScore);
-        $stmt->bindParam(':percentage', $percentage);
-        $stmt->bindParam(':grade', $grade);
-        $stmt->bindParam(':date', $gradeDate);
-        
-        $stmt->execute();
+        $stmt->execute([
+            ':student_class_id' => $studentClassIds[$i],
+            ':activity_type'    => $activityType,
+            ':activity_name'    => $activityName,
+            ':score'            => $scores[$i],
+            ':max_score'        => $maxScore,
+            ':grade_date'       => $gradeDate
+        ]);
     }
 
     header("Location: ../pages/grades.php");

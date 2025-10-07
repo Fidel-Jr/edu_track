@@ -8,7 +8,7 @@
         exit;
     }
     
-    require "../backend/functions.php";
+    require "../backend/dashboard_functions.php";
 
     $classId = $_SESSION["class_id"];
     $attendanceRate = getClassAttendanceRate($pdo, $classId);
@@ -53,7 +53,7 @@
                                 <div class="card-body">
                                     <div class="d-flex justify-content-between align-items-center">
                                         <div>
-                                            <h6 class="card-title">ATTENDANCE RATE</h6>
+                                            <h6 class="card-title">ATTENDANCE CLASS RATE</h6>
                                             <h3 class="card-text"><?php echo $attendanceRate ?>%</h3>
                                         </div>
                                         <i class="bi bi-calendar-check fs-1 opacity-50"></i>
@@ -68,7 +68,7 @@
                                     <div class="d-flex justify-content-between align-items-center">
                                         <div>
                                             
-                                            <h6 class="card-title">AVERAGE GRADE</h6>
+                                            <h6 class="card-title">AVERAGE CLASS GRADE</h6>
                                             <h3 class="card-text"><?php echo $averageGrade ?>%</h3>
                                         </div>
                                         <i class="bi bi-journal-check fs-1 opacity-50"></i>

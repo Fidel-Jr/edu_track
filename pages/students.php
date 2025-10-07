@@ -1,6 +1,39 @@
 <?php
     require "../db/connect.php";
     session_start();
+
+    if (isset($_POST['delete_student_id'])) {
+        $studentId = $_POST['delete_student_id'];
+        $classId = $_SESSION["class_id"];
+
+        // Remove from student_classes
+        $stmt = $pdo->prepare("DELETE FROM student_classes WHERE student_id = :student_id AND class_id = :class_id");
+        $stmt->execute([':student_id' => $studentId, ':class_id' => $classId]);
+
+        // Remove related attendance
+        $stmt = $pdo->prepare("DELETE a FROM attendance a
+            INNER JOIN student_classes sc ON a.student_class_id = sc.id
+            WHERE sc.student_id = :student_id AND sc.class_id = :class_id");
+        $stmt->execute([':student_id' => $studentId, ':class_id' => $classId]);
+
+        // Remove related grades
+        $stmt = $pdo->prepare("DELETE g FROM grades g
+            INNER JOIN student_classes sc ON g.student_class_id = sc.id
+            WHERE sc.student_id = :student_id AND sc.class_id = :class_id");
+        $stmt->execute([':student_id' => $studentId, ':class_id' => $classId]);
+
+        // Optional: Remove student from students table if not enrolled in any class
+        // $stmt = $pdo->prepare("DELETE FROM students WHERE id = :student_id AND NOT EXISTS (SELECT 1 FROM student_classes WHERE student_id = :student_id)");
+        // $stmt->execute([':student_id' => $studentId]);
+
+        header("Location: students.php?students_page=" . ($_GET['students_page'] ?? 1));
+        exit;
+    }
+
+    if ((!isset($_SESSION["username"]) && !isset($_SESSION["user_id"])) || !isset($_SESSION["class_id"])) {
+        header("Location: ../welcome.php");
+        exit;
+    }
     $recordsPerPage = 10;
     
     $studentsPage = isset($_GET['students_page']) && is_numeric($_GET['students_page']) 
@@ -35,6 +68,9 @@
     $stmtStudents->bindValue(':offset', $studentsOffset, PDO::PARAM_INT);
     $stmtStudents->execute();
     $students = $stmtStudents->fetchAll(PDO::FETCH_ASSOC);
+
+
+
 ?>
 
 
@@ -96,6 +132,7 @@
                                             <th scope="col">Last Name</th>
                                             <th scope="col">Address</th>
                                             <th scope="col">Phone</th>
+                                            <th scope="col">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -109,6 +146,17 @@
                                                         <td><?= $student["last_name"] ?></td>
                                                         <td><?= $student["address"] ?></td>
                                                         <td><?= $student["phone"] ?></td>
+                                                        <td>
+                                                            <a href="edit_student.php?id=<?= $student["student_id"] ?>" class="btn btn-warning btn-sm">
+                                                                <i class="fas fa-edit"></i> Edit
+                                                            </a>
+                                                            <form action="" method="POST" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this student?');">
+                                                                <input type="hidden" name="delete_student_id" value="<?= $student["student_id"] ?>">
+                                                                <button type="submit" class="btn btn-danger btn-sm">
+                                                                    <i class="fas fa-trash"></i> Delete
+                                                                </button>
+                                                            </form>
+                                                        </td>
                                                     </tr>
                                             <?php endforeach; ?>
                                         
@@ -120,14 +168,6 @@
                                     </tbody>
                                 </table>
 
-                                <!-- Export Button -->
-                                <!-- <form action="../backend/export_pdf.php" method="post" target="_blank">
-                                    <div class="d-flex justify-content-end">
-                                        <button type="submit" name="export_attendance_pdf" class="btn btn-success">
-                                            <i class="fas fa-file-pdf"></i> Export to PDF
-                                        </button>
-                                    </div>
-                                </form> -->
                             </div>
 
                             <!-- Students Pagination -->
@@ -203,5 +243,6 @@
     <!-- <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script> -->
     
     <script src="../assets/js/main.js"></script>
+   
 </body>
 </html>

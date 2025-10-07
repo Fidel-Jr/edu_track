@@ -8,7 +8,10 @@ use Dompdf\Dompdf;
 if (isset($_POST["export_attendance_pdf"])) {
     // Fetch data (example: students with attendance rate)
     $sql = "SELECT s.first_name, s.last_name, 
-                ROUND((SUM(CASE WHEN a.status='Present' THEN 1 ELSE 0 END) * 100.0) / COUNT(a.id), 2) AS attendance_rate
+                calculate_attendance_rate(
+                    SUM(CASE WHEN a.status='Present' THEN 1 ELSE 0 END),
+                    COUNT(a.id)
+                ) AS attendance_rate
             FROM students s
             INNER JOIN student_classes sc ON s.id = sc.student_id
             INNER JOIN attendance a ON sc.id = a.student_class_id
@@ -53,12 +56,10 @@ if (isset($_POST["export_grades_pdf"])) {
             s.id AS student_id,
             CONCAT(s.first_name, ' ', s.last_name) AS student_name,
             sc.class_id,
-            ROUND(AVG(g.percentage), 2) AS overall_grade_percentage
+            calculate_overall_grade(AVG(g.percentage)) AS overall_grade_percentage
         FROM student_classes sc
-        JOIN students s 
-            ON sc.student_id = s.id
-        LEFT JOIN grades g 
-            ON g.student_class_id = sc.id
+        JOIN students s ON sc.student_id = s.id
+        LEFT JOIN grades g ON g.student_class_id = sc.id
         WHERE sc.class_id = :class_id
         GROUP BY s.id, sc.class_id
     ";
