@@ -51,7 +51,6 @@
     $totalStudentsRows = $countStudentsStmt->fetchColumn();
     $totalStudentsPages = ceil($totalStudentsRows / $recordsPerPage);
 
-    // Fetch attendance records
     $sqlStudents = "SELECT 
                         s.id AS student_id,
                         s.first_name, s.last_name, s.address, s.phone,

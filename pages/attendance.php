@@ -389,6 +389,7 @@ if ($end < $totalAttendancePages) {
     </div>
 
     <!-- Student Attendance Page -->
+    <!-- Create & Save Attendance -->
     <div id="studentAttendancePage" class="attendance-page">
         <div class="container-fluid p-4">
             <form action="../backend/save_attendance.php" method="POST" id="attendanceForm">
